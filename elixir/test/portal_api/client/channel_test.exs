@@ -3474,7 +3474,7 @@ defmodule PortalAPI.Client.ChannelTest do
       timer_ref = Process.send_after(self(), :pending_flow_timeout, 60_000)
 
       :sys.replace_state(socket.channel_pid, fn state ->
-        put_in(state.assigns.pending_flows, %{resource.id => {timer_ref, Ecto.UUID.generate()}})
+        put_in(state.assigns.pending_flows, %{resource.id => timer_ref})
       end)
 
       preshared_key = "PSK"
@@ -6823,7 +6823,6 @@ defmodule PortalAPI.Client.ChannelTest do
             ghost_pa_id,
             initiating_client_id,
             resource_id,
-            Ecto.UUID.generate(),
             expires_at
           )
 
@@ -6922,7 +6921,6 @@ defmodule PortalAPI.Client.ChannelTest do
             pa.id,
             initiating_client_id,
             resource_id,
-            Ecto.UUID.generate(),
             pa.expires_at
           )
 
@@ -7021,7 +7019,6 @@ defmodule PortalAPI.Client.ChannelTest do
           resource: rendered_resource,
           subject: rendered_subject,
           policy_authorization_id: policy_authorization_id,
-          policy_id: Ecto.UUID.generate(),
           authorization_expires_at: expires_at
         }
       })
@@ -7135,7 +7132,6 @@ defmodule PortalAPI.Client.ChannelTest do
 
       initiating_client_id = initiating_client.id
       pool_resource_id = pool_resource.id
-      policy_id = pa.policy_id
       expected_expires_at = DateTime.to_unix(pa.expires_at, :second)
 
       assert_push "init", %{authorizations: [authorization]}
@@ -7143,7 +7139,6 @@ defmodule PortalAPI.Client.ChannelTest do
       assert authorization == %{
                client_id: initiating_client_id,
                resource_id: pool_resource_id,
-               policy_id: policy_id,
                expires_at: expected_expires_at
              }
     end
@@ -7177,7 +7172,6 @@ defmodule PortalAPI.Client.ChannelTest do
           ice_role: :controlled,
           resource: rendered_resource,
           policy_authorization_id: pa_id,
-          policy_id: Ecto.UUID.generate(),
           authorization_expires_at: expired_at
         }
       })
