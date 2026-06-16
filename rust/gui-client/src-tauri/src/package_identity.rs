@@ -23,11 +23,10 @@ pub struct RestartRequired;
 
 /// Returned by [`ensure_package_identity`] on Windows when the running
 /// image fails its own Authenticode signature with a *bad digest* — it
-/// was modified after signing. Package identity attaches only to a
-/// binary that validates against the package publisher, so the kernel
-/// will never stamp identity onto a tampered image and no restart can
-/// help. The caller surfaces a "reinstall" dialog instead of looping on
-/// the restart prompt.
+/// was modified after signing. Windows can still stamp package identity
+/// onto an external-location sparse package in this state, so we verify
+/// explicitly before trusting identity-sensitive access. The caller
+/// surfaces a "reinstall" dialog.
 #[derive(Debug, thiserror::Error)]
 #[error("Firezone.exe failed its Authenticode signature (bad digest); the installation is corrupt")]
 pub struct InstallationCorrupt;
@@ -53,16 +52,14 @@ pub fn ensure_package_identity() -> Result<()> {
 
 #[cfg(target_os = "windows")]
 pub fn ensure_package_identity() -> Result<()> {
+    // Validate our own image before trusting an already-attached sparse
+    // package identity. A package can launch with identity even when
+    // Authenticode reports TRUST_E_BAD_DIGEST.
+    verify_self_signature()?;
+
     if has_package_identity() {
         return Ok(());
     }
-
-    // No identity yet. Before registering and asking for a restart,
-    // rule out the one case a restart can never fix: our own image
-    // failing its Authenticode signature with a bad digest (modified
-    // after signing). The kernel won't attach identity to a tampered
-    // binary, so that would loop on the restart prompt forever.
-    verify_self_signature()?;
 
     register_for_current_user()?;
     Err(RestartRequired.into())
@@ -80,11 +77,11 @@ pub fn has_package_identity() -> bool {
 /// and maps a *bad digest* — a binary modified after signing — to
 /// [`InstallationCorrupt`].
 ///
-/// Package identity attaches at `CreateProcess` only to a binary that
-/// validates against the package publisher, so a tampered `Firezone.exe`
-/// can never gain it and [`ensure_package_identity`] would loop on the
-/// restart prompt forever. Detecting this up front lets the caller tell
-/// the user to reinstall instead.
+/// External-location sparse package identity can attach even when
+/// Authenticode reports `TRUST_E_BAD_DIGEST`, so package identity alone
+/// is not enough evidence that the installed outer EXE still matches the
+/// signed bytes. Detecting this up front lets the caller tell the user to
+/// reinstall instead of running a modified signed image.
 ///
 /// Only `TRUST_E_BAD_DIGEST` is treated as fatal. Any other status — an
 /// unsigned profiling build, an untrusted chain on a locked-down box, a
@@ -170,7 +167,7 @@ fn verify_self_signature() -> Result<()> {
     if status != 0 {
         tracing::warn!(
             status = %format!("{status:#010x}"),
-            "WinVerifyTrust on own image returned non-success; continuing to register"
+            "WinVerifyTrust on own image returned non-success; continuing with package identity check"
         );
     }
 

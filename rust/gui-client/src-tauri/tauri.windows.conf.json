@@ -1,6 +1,19 @@
 {
   "build": {
-    "beforeBundleCommand": "bash ../../scripts/build/tauri-pre-bundle-windows.sh"
+    "beforeBundleCommand": "bash ../../scripts/build/build-msix-windows.sh"
+  },
+  "bundle": {
+    "windows": {
+      "signCommand": {
+        "cmd": "bash",
+        "args": [
+          "-lc",
+          "exec \"$(git rev-parse --show-toplevel)/scripts/build/sign.sh\" \"$1\"",
+          "firezone-sign",
+          "%1"
+        ]
+      }
+    }
   },
   "mainBinaryName": "Firezone",
   "productName": "Firezone"
